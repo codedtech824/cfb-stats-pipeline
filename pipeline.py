@@ -30,21 +30,16 @@ def get_team_stats(team, year):
         return None
 
     return data
+def fetch_all_team_stats(teams, year):
+    """Fetch season player stats for all data. Returns a list of dicts, or None on failure."""
+    all_data = []
+    for team in teams:
+        data = get_team_stats(team, year)
+        if data is None:          # failure signal — skip this team, keep going
+            continue
+        all_data.extend(data)     # add this team's records to the pile
 
-# Pull several teams, stack them into one dataset
-teams = ["USC", "Oregon", "Michigan", "Alabama", "Georgia"]
-all_data = []
-
-for team in teams:
-    data = get_team_stats(team, 2023)
-    if data is None:          # failure signal — skip this team, keep going
-        continue
-    all_data.extend(data)     # add this team's records to the pile
-
-print(f"\nTotal records across {len(teams)} teams: {len(all_data)}")
-
-df = pd.DataFrame(all_data)
-print("Teams actually pulled:", df["team"].unique())
+    return all_data
 
 # Cast and pivot — same silver moves, now on 5 teams
 df["stat"] = pd.to_numeric(df["stat"])
