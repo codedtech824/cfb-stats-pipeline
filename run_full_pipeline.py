@@ -31,19 +31,21 @@ def main():
     print("\nSequence:")
     print("  1. Fetch 2026 NFL Schedule")
     print("  2. Fetch Player Stats from nfldata.org API (2022-2025)")
-    print("  3. Analyze Matchups & Identify Problem Opponents")    print("  4. Generate Draft Round Rankings")    print()
+    print("  3. Analyze Matchups & Identify Problem Opponents")
+    print("  4. Generate Draft Round Rankings")
+    print()
     
     # Step 1: Fetch schedule
     if not run_command(
         [sys.executable, 'test_schedule_integration.py'],
-        "Step 1/3: Fetch 2026 NFL Schedule"
+        "Step 1/4: Fetch 2026 NFL Schedule"
     ):
         return False
     
     # Step 2: Fetch stats from nfldata.org API
     if not run_command(
         [sys.executable, 'fetch_from_nfldata_api.py'],
-        "Step 2/3: Fetch Player Stats from nfldata.org API"
+        "Step 2/4: Fetch Player Stats from nfldata.org API"
     ):
         print("\n⚠️ Warning: Could not fetch from API, data may not be available")
         # Don't fail here - API might have rate limits or 2025 data not ready
