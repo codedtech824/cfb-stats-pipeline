@@ -161,6 +161,28 @@ def build_player_position_lookup(gl):
     return {k: ('RB' if v == 'FB' else v) for k, v in lookup.items()}
 
 
+def _fetch_2026_rosters():
+    """
+    Fetch the nflverse 2026 season roster CSV.
+    Returns a DataFrame with full_name and team columns (2,800 active players).
+    Returns empty DataFrame on failure.
+    """
+    import requests, io
+    url = 'https://github.com/nflverse/nflverse-data/releases/download/rosters/roster_2026.csv'
+    try:
+        resp = requests.get(url, timeout=30)
+        if resp.status_code == 200:
+            df = pd.read_csv(io.StringIO(resp.text))
+            # Keep one row per player (some appear multiple times for different weeks)
+            df = df[['full_name', 'team', 'position']].dropna(subset=['full_name', 'team'])
+            df = df.drop_duplicates(subset=['full_name'], keep='last')
+            print(f"  ✓ 2026 roster: {len(df):,} players from nflverse")
+            return df
+    except Exception as e:
+        print(f"  ⚠ Could not fetch 2026 roster: {str(e)[:40]}")
+    return pd.DataFrame()
+
+
 def load_and_consolidate(gl):
     """
     Consolidate game_level_stats into one row per player with:
@@ -218,18 +240,18 @@ def load_and_consolidate(gl):
         .reset_index()
     )
 
-    # Most recent team per player — use only the latest season to ensure
-    # 2025 roster assignments, not a player's team from 2022.
-    latest_season = gl['season'].max()
-    latest_season_gl = gl[gl['season'] == latest_season]
-    most_recent_team = (
-        latest_season_gl.sort_values('week')
-        .groupby('player_name')['team']
-        .last()
-        .reset_index()
-    )
-    # For players not in the latest season (retired, missing data), fall back
-    # to their most recent team from any season
+    # Most recent team per player — fetch from nflverse 2026 season roster
+    # (the definitive source for current team assignments as of the 2026 season).
+    # Falls back to 2025 season data for players not on a 2026 roster.
+    roster_2026 = _fetch_2026_rosters()
+
+    # Build lookup: full_name -> team from 2026 roster
+    if not roster_2026.empty:
+        roster_lookup = roster_2026.set_index('full_name')['team'].to_dict()
+    else:
+        roster_lookup = {}
+
+    # Fallback: most recent game-level team per player (2025 season → oldest)
     fallback_team = (
         gl.sort_values(['season', 'week'])
         .groupby('player_name')['team']
@@ -250,9 +272,9 @@ def load_and_consolidate(gl):
         .reset_index()
     )
     player_stats.rename(columns={'canon_pos': 'position'}, inplace=True)
-    player_stats = player_stats.merge(most_recent_team, on='player_name', how='left')
     player_stats = player_stats.merge(fallback_team, on='player_name', how='left')
-    player_stats['team'] = player_stats['team'].fillna(player_stats['team_fallback'])
+    # Apply 2026 roster lookup first, fall back to 2025 game data
+    player_stats['team'] = player_stats['player_name'].map(roster_lookup).fillna(player_stats['team_fallback'])
     player_stats.drop(columns=['team_fallback'], inplace=True)
     player_stats['consistency'] = (player_stats['std_fp'] / player_stats['avg_fp'].abs().clip(lower=0.1)).round(2)
 
